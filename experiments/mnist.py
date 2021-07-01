@@ -1,5 +1,6 @@
 # SYSTEM IMPORTS
 from typing import List
+from tqdm import tqdm
 import argparse
 import numpy as np
 import os
