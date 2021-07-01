@@ -50,7 +50,7 @@ class PymmPosterior(Posterior):
             self.shelf.posterior_mu.dot(self.shelf.posterior_sums.T) -
             self.shelf.posterior_sums.dot(self.shelf.posterior_mu.T) +
             (self.num_samples_seen + 1) * self.shelf.posterior_mu.dot(
-                self.shelf.posterior_mu.T)) / self.num_samples_seen
+                self.shelf.posterior_mu.T)) / max(self.num_samples_seen, 1)
 
         self.num_samples_seen += 1
 

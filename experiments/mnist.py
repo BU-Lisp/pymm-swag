@@ -68,7 +68,7 @@ def train_one_epoch(m: pt.nn.Module,
         optim.zero_grad()
 
         Y_hat: pt.Tensor = m.forward(X)
-        loss: pt.Tensor = F.nll_loss(Y_gt, Y_hat)
+        loss: pt.Tensor = F.nll_loss(Y_hat, Y_gt)
         loss.backward()
         optim.step()
 

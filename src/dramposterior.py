@@ -38,7 +38,7 @@ class DramPosterior(Posterior):
             self.posterior_mu.dot(self.posterior_sums.T) -
             self.posterior_sums.dot(self.posterior_mu.T) +
             (self.num_samples_seen + 1) * self.posterior_mu.dot(
-                self.posterior_mu.T)) / self.num_samples_seen
+                self.posterior_mu.T)) / max(self.num_samples_seen, 1)
 
         self.num_samples_seen += 1
 
