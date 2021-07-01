@@ -85,10 +85,15 @@ def main() -> None:
                         help="sgd momentum")
     parser.add_argument("-e", "--epochs", type=int, default=int(1e6),
                         help="num epochs")
+    parser.add_argument("-p", "--path", type=str,
+                        default="/scratch/aewood/data/mnist")
     args = parser.parse_args()
 
+    if not os.path.exists(args.path):
+        os.makedirs(args.path)
+
     train_loader = pt.utils.data.DataLoader(
-        ptv.datasets.MNIST("/scratch", train=True, download=True,
+        ptv.datasets.MNIST(args.path, train=True, download=True,
                             transform=ptv.transforms.Compose([
                                 ptv.transforms.ToTensor(),
                                 ptv.transforms.Normalize((0.1307,),
@@ -98,7 +103,7 @@ def main() -> None:
         shuffle=True)
 
     test_loader = pt.utils.data.DataLoader(
-        ptv.datasets.MNIST("/scratch", train=False, download=True,
+        ptv.datasets.MNIST(args.path, train=False, download=True,
                             transform=ptv.transforms.Compose([
                                 ptv.transforms.ToTensor(),
                                 ptv.transforms.Normalize((0.1307,),
