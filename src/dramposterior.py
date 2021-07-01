@@ -31,14 +31,14 @@ class DramPosterior(Posterior):
         self.posterior_sums += theta
         self.posterior_squaresums += theta.dot(theta.T)
 
-        self.posterior_mu = self.posterior_sums /\
-            (self.num_samples_seen + 1)
+        # self.posterior_mu = self.posterior_sums /\
+        #     (self.num_samples_seen + 1)
 
-        self.posterior_cov = (self.posterior_squaresums -
-            self.posterior_mu.dot(self.posterior_sums.T) -
-            self.posterior_sums.dot(self.posterior_mu.T) +
-            (self.num_samples_seen + 1) * self.posterior_mu.dot(
-                self.posterior_mu.T)) / max(self.num_samples_seen, 1)
+        # self.posterior_cov = (self.posterior_squaresums -
+        #     self.posterior_mu.dot(self.posterior_sums.T) -
+        #     self.posterior_sums.dot(self.posterior_mu.T) +
+        #     (self.num_samples_seen + 1) * self.posterior_mu.dot(
+        #         self.posterior_mu.T)) / max(self.num_samples_seen, 1)
 
         self.num_samples_seen += 1
 
@@ -48,6 +48,14 @@ class DramPosterior(Posterior):
         if(self.num_samples_seen < self.num_params):
             raise RuntimeError("ERROR: cov is singular, need %s more samples"
                                % (self.num_params-self.num_samples_seen))
+
+        self.posterior_mu = self.posterior_sums / self.num_samples_seen
+
+        self.posterior_cov = (self.posterior_squaresums -
+            self.posterior_mu.dot(self.posterior_sums.T) -
+            self.posterior_sums.dot(self.posterior_mu.T) +
+            self.num_samples_seen * self.posterior_mu.dot(
+                self.posterior_mu.T)) / self.num_samples_seen - 1)
 
         self.shelf.posterior_cholesky = np.linalg.cholesky(self.posterior_cov)
 
