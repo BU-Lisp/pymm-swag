@@ -88,7 +88,7 @@ def main() -> None:
     args = parser.parse_args()
 
     train_loader = pt.utils.data.DataLoader(
-        ptv.datasets.MNIST(".", train=True, download=True,
+        ptv.datasets.MNIST("/scratch", train=True, download=True,
                             transform=ptv.transforms.Compose([
                                 ptv.transforms.ToTensor(),
                                 ptv.transforms.Normalize((0.1307,),
@@ -98,7 +98,7 @@ def main() -> None:
         shuffle=True)
 
     test_loader = pt.utils.data.DataLoader(
-        ptv.datasets.MNIST(".", train=False, download=True,
+        ptv.datasets.MNIST("/scratch", train=False, download=True,
                             transform=ptv.transforms.Compose([
                                 ptv.transforms.ToTensor(),
                                 ptv.transforms.Normalize((0.1307,),
