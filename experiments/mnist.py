@@ -62,13 +62,14 @@ def train_one_epoch(m: pt.nn.Module,
                     optim: pt.optim.Optimizer,
                     loader: pt.utils.data.DataLoader,
                     epoch: int,
-                    posterior: Posterior) -> None:
+                    posterior: Posterior,
+                    cuda: int) -> None:
     for batch_idx, (X, Y_gt) in tqdm(enumerate(loader),
                                      desc="training epoch %s" % epoch,
                                      total=len(loader)):
         optim.zero_grad()
 
-        Y_hat: pt.Tensor = m.forward(X)
+        Y_hat: pt.Tensor = m.forward(X.to(cuda))
         loss: pt.Tensor = F.nll_loss(Y_hat, Y_gt)
         loss.backward()
         optim.step()
@@ -104,7 +105,7 @@ def main() -> None:
                                                          (0.3081,))
                             ])),
         batch_size=args.batch_size,
-        shuffle=True).to(args.cuda)
+        shuffle=True)
 
     test_loader = pt.utils.data.DataLoader(
         ptv.datasets.MNIST(args.path, train=False, download=True,
@@ -114,7 +115,7 @@ def main() -> None:
                                                          (0.3081,))
                             ])),
         batch_size=args.batch_size,
-        shuffle=True).to(args.cuda)
+        shuffle=True)
 
     print("loading model")
 
@@ -129,7 +130,12 @@ def main() -> None:
     # update posterior with first parameter sample
     posterior.update(m.get_params())
     for e in range(args.epochs):
-        train_one_epoch(m, optimizer, train_loader, e+1, posterior)
+        train_one_epoch(m,
+                        optimizer,
+                        train_loader,
+                        e+1,
+                        posterior,
+                        args.cuda)
 
 
 if __name__ == "__main__":
