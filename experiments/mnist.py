@@ -64,7 +64,8 @@ def train_one_epoch(m: pt.nn.Module,
                     epoch: int,
                     posterior: Posterior) -> None:
     for batch_idx, (X, Y_gt) in tqdm(enumerate(loader),
-                                     desc="training epoch %s" % epoch):
+                                     desc="training epoch %s" % epoch,
+                                     total=len(loader)):
         optim.zero_grad()
 
         Y_hat: pt.Tensor = m.forward(X)
@@ -88,6 +89,8 @@ def main() -> None:
                         help="num epochs")
     parser.add_argument("-p", "--path", type=str,
                         default="/scratch/aewood/data/mnist")
+    parser.add_argument("-c", "--cuda", type=int,
+                        default=0)
     args = parser.parse_args()
 
     if not os.path.exists(args.path):
@@ -101,7 +104,7 @@ def main() -> None:
                                                          (0.3081,))
                             ])),
         batch_size=args.batch_size,
-        shuffle=True)
+        shuffle=True).to(args.cuda)
 
     test_loader = pt.utils.data.DataLoader(
         ptv.datasets.MNIST(args.path, train=False, download=True,
@@ -111,11 +114,11 @@ def main() -> None:
                                                          (0.3081,))
                             ])),
         batch_size=args.batch_size,
-        shuffle=True)
+        shuffle=True).to(args.cuda)
 
     print("loading model")
 
-    m = Model()
+    m = Model().to(args.cuda)
     optimizer = pt.optim.SGD(m.parameters(), lr=args.learning_rate,
                              momentum=args.momentum)
 
