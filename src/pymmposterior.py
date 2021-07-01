@@ -43,14 +43,14 @@ class PymmPosterior(Posterior):
         self.shelf.posterior_sums += theta
         self.shelf.posterior_squaresums += theta.dot(theta.T)
 
-        self.shelf.posterior_mu = self.shelf.posterior_sums /\
-            (self.num_samples_seen + 1)
+        # self.shelf.posterior_mu = self.shelf.posterior_sums /\
+        #     (self.num_samples_seen + 1)
 
-        self.shelf.posterior_cov = (self.shelf.posterior_squaresums -
-            self.shelf.posterior_mu.dot(self.shelf.posterior_sums.T) -
-            self.shelf.posterior_sums.dot(self.shelf.posterior_mu.T) +
-            (self.num_samples_seen + 1) * self.shelf.posterior_mu.dot(
-                self.shelf.posterior_mu.T)) / max(self.num_samples_seen, 1)
+        # self.shelf.posterior_cov = (self.shelf.posterior_squaresums -
+        #     self.shelf.posterior_mu.dot(self.shelf.posterior_sums.T) -
+        #     self.shelf.posterior_sums.dot(self.shelf.posterior_mu.T) +
+        #     (self.num_samples_seen + 1) * self.shelf.posterior_mu.dot(
+        #         self.shelf.posterior_mu.T)) / max(self.num_samples_seen, 1)
 
         self.num_samples_seen += 1
 
@@ -60,6 +60,15 @@ class PymmPosterior(Posterior):
         if(self.num_samples_seen < self.num_params):
             raise RuntimeError("ERROR: cov is singular, need %s more samples"
                                % (self.num_params-self.num_samples_seen))
+
+        self.shelf.posterior_mu = self.shelf.posterior_sums /\
+            self.num_samples_seen
+
+        self.shelf.posterior_cov = (self.shelf.posterior_squaresums -
+            self.shelf.posterior_mu.dot(self.shelf.posterior_sums.T) -
+            self.shelf.posterior_sums.dot(self.shelf.posterior_mu.T) +
+            (self.num_samples_seen) * self.shelf.posterior_mu.dot(
+                self.shelf.posterior_mu.T)) / (self.num_samples_seen - 1)
 
         self.shelf.posterior_cholesky = np.linalg.cholesky(self.shelf.posterior_cov)
 
