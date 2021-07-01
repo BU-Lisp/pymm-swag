@@ -22,6 +22,9 @@ from src.posterior import Posterior
 from src.dramposterior import DramPosterior
 
 
+pt.backends.cudnn.enabled = False
+
+
 class Model(pt.nn.Module):
     def __init__(self):
         super().__init__()
