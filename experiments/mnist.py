@@ -70,7 +70,7 @@ def train_one_epoch(m: pt.nn.Module,
         optim.zero_grad()
 
         Y_hat: pt.Tensor = m.forward(X.to(cuda))
-        loss: pt.Tensor = F.nll_loss(Y_hat, Y_gt)
+        loss: pt.Tensor = F.nll_loss(Y_hat.cpu(), Y_gt.cpu())
         loss.backward()
         optim.step()
 
@@ -99,21 +99,25 @@ def main() -> None:
 
     train_loader = pt.utils.data.DataLoader(
         ptv.datasets.MNIST(args.path, train=True, download=True,
-                            transform=ptv.transforms.Compose([
-                                ptv.transforms.ToTensor(),
-                                ptv.transforms.Normalize((0.1307,),
-                                                         (0.3081,))
-                            ])),
+                           transform=ptv.transforms.ToTensor()
+                            # transform=ptv.transforms.Compose([
+                            #     ptv.transforms.ToTensor(),
+                            #     ptv.transforms.Normalize((0.1307,),
+                            #                              (0.3081,))
+                            # ])
+                           ),
         batch_size=args.batch_size,
         shuffle=True)
 
     test_loader = pt.utils.data.DataLoader(
         ptv.datasets.MNIST(args.path, train=False, download=True,
-                            transform=ptv.transforms.Compose([
-                                ptv.transforms.ToTensor(),
-                                ptv.transforms.Normalize((0.1307,),
-                                                         (0.3081,))
-                            ])),
+                           transform=ptv.transforms.ToTensor()
+                            # transform=ptv.transforms.Compose([
+                            #     ptv.transforms.ToTensor(),
+                            #     ptv.transforms.Normalize((0.1307,),
+                            #                              (0.3081,))
+                            # ])
+                           ),
         batch_size=args.batch_size,
         shuffle=True)
 
