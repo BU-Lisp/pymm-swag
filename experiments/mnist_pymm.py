@@ -86,7 +86,7 @@ def main() -> None:
                         default=1e-4,
                         help="learning rate")
     parser.add_argument("-m", "--momentum", type=float, default=0,
-                        help="sgd momentum"
+                        help="sgd momentum")
     parser.add_argument("-e", "--epochs", type=int, default=int(1e6),
                         help="num epochs")
     parser.add_argument("-p", "--path", type=str,
@@ -105,21 +105,25 @@ def main() -> None:
 
     train_loader = pt.utils.data.DataLoader(
         ptv.datasets.MNIST(args.path, train=True, download=True,
-                            transform=ptv.transforms.Compose([
-                                ptv.transforms.ToTensor(),
-                                ptv.transforms.Normalize((0.1307,),
-                                                         (0.3081,))
-                            ])),
+                           transform=ptv.transforms.ToTensor()
+                           # transform=ptv.transforms.Compose([
+                           #      ptv.transforms.ToTensor(),
+                           #      ptv.transforms.Normalize((0.1307,),
+                           #                               (0.3081,))
+                           #  ])
+                          ),
         batch_size=args.batch_size,
         shuffle=True)
 
     test_loader = pt.utils.data.DataLoader(
         ptv.datasets.MNIST(args.path, train=False, download=True,
-                            transform=ptv.transforms.Compose([
-                                ptv.transforms.ToTensor(),
-                                ptv.transforms.Normalize((0.1307,),
-                                                         (0.3081,))
-                            ])),
+                           transform=ptv.transforms.ToTensor()
+                            # transform=ptv.transforms.Compose([
+                            #     ptv.transforms.ToTensor(),
+                            #     ptv.transforms.Normalize((0.1307,),
+                            #                              (0.3081,))
+                            # ])
+                          ),
         batch_size=args.batch_size,
         shuffle=True)
 
