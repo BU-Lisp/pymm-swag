@@ -71,7 +71,7 @@ def train_one_epoch(m: pt.nn.Module,
         optim.zero_grad()
 
         Y_hat: pt.Tensor = m.forward(X.to(cuda))
-        loss: pt.Tensor = F.nll_loss(Y_hat, Y_gt)
+        loss: pt.Tensor = F.nll_loss(Y_hat.cpu(), Y_gt.cpu())
         loss.backward()
         optim.step()
 
