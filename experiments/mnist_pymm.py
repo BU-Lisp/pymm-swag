@@ -93,7 +93,7 @@ def main() -> None:
                         default="/scratch/aewood/data/mnist")
     parser.add_argument("-c", "--cuda", type=int,
                         default=0)
-    parser.add_argument("-s", "--size_mb", type=int, default=50000,
+    parser.add_argument("-s", "--size_mb", type=int, default=40000,
                         help="size of shelf in mb")
     parser.add_argument("-f", "--shelf_file", type=str,
                         default="/mnt/pmem0",
@@ -140,7 +140,7 @@ def main() -> None:
 
     num_params: int = m.get_params().shape[0]
     print("num params: %s" % num_params)
-    posterior = DramPosterior(num_params, shelf)
+    posterior = PymmPosterior(num_params, shelf)
 
     # update posterior with first parameter sample
     posterior.update(m.get_params())
