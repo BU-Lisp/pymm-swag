@@ -161,7 +161,7 @@ def main() -> None:
                         train_loader,
                         e+1,
                         parent_pipe,
-                        args.bpost
+                        args.bpost,
                         args.cuda)
 
     """"""
