@@ -1,0 +1,8 @@
+train data loading time (s),0.01217961311340332
+test data loading time (s),0.0021927356719970703
+make model time (s),0.8487303256988525
+make posterior time (s),3.814697265625e-05
+epoch 0 time (s),5.234716176986694
+posterior finalize time (s),2.5987625122070312e-05
+total experiment time (s),5.2433953285217285
+total script time (s),6.107398271560669

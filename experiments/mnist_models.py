@@ -133,6 +133,36 @@ class Model_317Gb(pt.nn.Module):
                 param_idx += num_params
 
 
+class Model_700Gb(pt.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.fc1 = pt.nn.Linear(28*28, 200)
+        self.fc2 = pt.nn.Linear(200, 200)
+        self.fc3 = pt.nn.Linear(200, 10)
+
+    def forward(self,
+                x: pt.Tensor):
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return F.log_softmax(x, -1)
+
+    def get_params(self) -> np.ndarray:
+        params_list: List[np.ndarray] = list()
+        for P in self.parameters():
+            params_list.append(P.cpu().detach().numpy().reshape(-1))
+        return np.hstack(params_list).reshape(-1,1)
+
+    def set_params(self,
+                   theta: np.ndarray) -> None:
+        param_idx: int = 0
+        for P in self.parameters():
+            if len(P.size() > 0):
+                num_params: int = np.prod(P.size())
+                P.copy_(theta[param_idx:param_idx+num_params]
+                    .reshape(P.size()))
+                param_idx += num_params
+
 
 class Model_5Tb(pt.nn.Module):
     def __init__(self):

@@ -2,11 +2,10 @@
 from typing import List
 from tqdm import tqdm
 import argparse
-import csv
+import multiprocessing as mp
 import numpy as np
 import os
 import sys
-import time
 import torch as pt
 import torch.nn.functional as F
 import torchvision as ptv
@@ -21,23 +20,43 @@ del _cd_
 
 # PYTHON PROJECT IMPORTS
 from src.posterior import Posterior
-from src.lazydramposterior import LazyDramPosterior
+from src.dramposterior import DramPosterior
 from mnist_models import Model_1_5Gb, Model_50Gb, Model_113Gb, Model_317Gb, Model_5Tb
 
 
+num_times_params_sent: int = 0
 model_map = {m.__name__.lower(): m for m in [Model_1_5Gb, Model_50Gb,
                                              Model_113Gb, Model_317Gb,
                                              Model_5Tb]}
+
+
+def posterior_func(child_pipe: mp.Pipe, child_progress: mp.Queue,
+                   args, num_params: int) -> None:
+    posterior = DramPosterior(num_params)
+
+    stop: bool = False
+    count: int = 0
+    while not stop:
+        params_maybe = child_pipe.recv()
+        stop = params_maybe is None
+
+        if not stop:
+            count += 1
+            posterior.update(params_maybe)
+            child_progress.put(count)
+
+    child_progress.put(None)
+    child_pipe.close()
 
 
 def train_one_epoch(m: pt.nn.Module,
                     optim: pt.optim.Optimizer,
                     loader: pt.utils.data.DataLoader,
                     epoch: int,
-                    posterior: Posterior,
-                    batch_posterior: int,
+                    parent_pipe: mp.Pipe,
                     cuda: int) -> None:
-    i = 1
+
+    global num_times_params_sent
     for batch_idx, (X, Y_gt) in tqdm(enumerate(loader),
                                      desc="training epoch %s" % epoch,
                                      total=len(loader)):
@@ -47,18 +66,18 @@ def train_one_epoch(m: pt.nn.Module,
         loss: pt.Tensor = F.nll_loss(Y_hat.cpu(), Y_gt.cpu())
         loss.backward()
         optim.step()
-        if ( i%batch_posterior == 0):
-            posterior.update(m.get_params())
-        i = i + 1    
+
+        # m.get_params()
+        parent_pipe.send(m.get_params())
+        num_times_params_sent += 1
 
 
 def main() -> None:
-    script_start_time = time.time()
+    global model_map, num_times_params_sent
+
     parser = argparse.ArgumentParser()
     parser.add_argument("model", type=str, choices=sorted(model_map.keys()),
                         help="the model type")
-    parser.add_argument("-K", "--posterior_sample_size", type=int,
-                        default=np.inf, help="the number of samples posterior expects")
     parser.add_argument("-b", "--batch_size", type=int, default=100,
                         help="batch size")
     parser.add_argument("-n", "--learning_rate", type=float,
@@ -72,20 +91,11 @@ def main() -> None:
                         default="/scratch/aewood/data/mnist")
     parser.add_argument("-c", "--cuda", type=int,
                         default=0)
-    parser.add_argument("-r", "--bpost", type=int,
-                        default=1)
-    parser.add_argument("-csv", "--results_filepath", type=str,
-                        default="./results/mnist/dram_timings.csv")
     args = parser.parse_args()
 
     if not os.path.exists(args.path):
         os.makedirs(args.path)
 
-    results_dir: str = os.path.abspath(os.path.dirname(args.results_filepath))
-    if not os.path.exists(results_dir):
-        os.makedirs(results_dir)
-
-    start_time: float = time.time()
     train_loader = pt.utils.data.DataLoader(
         ptv.datasets.MNIST(args.path, train=True, download=True,
                            transform=ptv.transforms.ToTensor()
@@ -97,9 +107,7 @@ def main() -> None:
                            ),
         batch_size=args.batch_size,
         shuffle=True)
-    end_train_loader_time = time.time() - start_time
 
-    start_time = time.time()
     test_loader = pt.utils.data.DataLoader(
         ptv.datasets.MNIST(args.path, train=False, download=True,
                            transform=ptv.transforms.ToTensor()
@@ -111,63 +119,49 @@ def main() -> None:
                            ),
         batch_size=args.batch_size,
         shuffle=True)
-    end_test_loader_time = time.time() - start_time
-
-    if np.isinf(args.posterior_sample_size):
-        args.posterior_sample_size = len(train_loader) * args.epochs
 
     print("loading model")
 
-    start_time = time.time()
     m = model_map[args.model]().to(args.cuda)
     optimizer = pt.optim.SGD(m.parameters(), lr=args.learning_rate,
                              momentum=args.momentum)
-    end_make_model_time = time.time() - start_time
 
     num_params: int = m.get_params().shape[0]
+    print("num params: %s" % num_params)
 
-    start_time = time.time()
-    posterior = LazyDramPosterior(num_params, K=args.posterior_sample_size)
-    end_make_posterior_time = time.time() - start_time
-    print("num params: %s" % num_params,
-          "posterior will take %s bytes" % posterior.nbytes)
+    parent_pipe, child_pipe = mp.Pipe(duplex=True)
+    child_progress: mp.Queue = mp.Queue()
+    posterior_process: mp.Process = mp.Process(target=posterior_func,
+                                               args=(child_pipe, child_progress,
+                                                     args, num_params))
+    posterior_process.start()
 
-    epoch_times: List[float] = list()
-    start_experiment_time = time.time()
     # update posterior with first parameter sample
-    posterior.update(m.get_params())
+    parent_pipe.send(m.get_params())
+    num_times_params_sent += 1
+
     for e in range(args.epochs):
-        start_epoch_time = time.time()
         train_one_epoch(m,
                         optimizer,
                         train_loader,
                         e+1,
-                        posterior,
-                        args.bpost,
+                        parent_pipe,
                         args.cuda)
-        epoch_times.append(time.time() - start_epoch_time)
 
-    print("finalizing posterior")
-    start_finalize_time = time.time()
-    posterior.finalize()
-    end_finalize_time = time.time() - start_finalize_time
-    print("done")
+    """"""
+    parent_pipe.send(None)
+    print("waiting for posterior to finish...")
+    with tqdm(total=num_times_params_sent, desc="posterior progress") as pbar:
+        stop: bool = False
+        while not stop:
+            count_maybe = child_progress.get()
+            stop = count_maybe is None
+            if not stop:
+                pbar.update(1)
 
-    end_experiment_time = time.time() - start_experiment_time
-    end_script_time = time.time() - script_start_time
-    # posterior.sample()
+    posterior_process.join()
+    """"""
 
-    with open(args.results_filepath, "w") as f:
-        writer = csv.writer(f, delimiter=",")
-        writer.writerow(["train data loading time (s)", end_train_loader_time])
-        writer.writerow(["test data loading time (s)", end_test_loader_time])
-        writer.writerow(["make model time (s)", end_make_model_time])
-        writer.writerow(["make posterior time (s)", end_make_posterior_time])
-        for e,t in enumerate(epoch_times):
-            writer.writerow(["epoch %s time (s)" % e, t])
-        writer.writerow(["posterior finalize time (s)", end_finalize_time])
-        writer.writerow(["total experiment time (s)", end_experiment_time])
-        writer.writerow(["total script time (s)", end_script_time])
 
 if __name__ == "__main__":
     main()
