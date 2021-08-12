@@ -19,7 +19,7 @@ del _cd_
 
 # PYTHON PROJECT IMPORTS
 from src.posterior import Posterior
-from src.dramposterior import DramPosterior
+from src.dramposterior import MemmapPosterior
 
 
 class Model(pt.nn.Module):
@@ -39,7 +39,7 @@ class Model(pt.nn.Module):
         x = F.relu(self.fc1(x))
         x = F.dropout(x, training=self.training)
         x = self.fc2(x)
-        return F.log_softmax(x)
+        return F.log_softmax(x, -1)
 
     def get_params(self) -> np.ndarray:
         params_list: List[np.ndarray] = list()
@@ -92,6 +92,8 @@ def main() -> None:
                         default="/scratch/aewood/data/mnist")
     parser.add_argument("-c", "--cuda", type=int,
                         default=0)
+    parser.add_argument("-s", "--memmap_path", type=str, default="./posterior",
+                        help="directory of where to store memory mapped files")
     args = parser.parse_args()
 
     if not os.path.exists(args.path):
@@ -129,7 +131,7 @@ def main() -> None:
 
     num_params: int = m.get_params().shape[0]
     print("num params: %s" % num_params)
-    posterior = DramPosterior(num_params)
+    posterior = MemmapPosterior(num_params)
 
     # update posterior with first parameter sample
     posterior.update(m.get_params())

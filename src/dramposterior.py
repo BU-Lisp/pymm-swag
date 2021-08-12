@@ -57,7 +57,7 @@ class DramPosterior(Posterior):
             self.num_samples_seen * self.posterior_mu.dot(
                 self.posterior_mu.T)) / (self.num_samples_seen - 1)
 
-        self.shelf.posterior_cholesky = np.linalg.cholesky(self.posterior_cov)
+        # self.shelf.posterior_cholesky = np.linalg.cholesky(self.posterior_cov)
 
     def sample(self) -> np.ndarray:
         z: np.ndarray = np.random.normal(loc=0, scale=1,

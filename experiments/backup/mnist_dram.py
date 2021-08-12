@@ -3,7 +3,6 @@ from typing import List
 from tqdm import tqdm
 import argparse
 import numpy as np
-import pymm
 import os
 import sys
 import torch as pt
@@ -20,49 +19,51 @@ del _cd_
 
 # PYTHON PROJECT IMPORTS
 from src.posterior import Posterior
-from src.pymmposterior import PymmPosterior
+from src.dramposterior import DramPosterior
 
 
-from mnist_models import Model_1_5Gb, Model_50Gb, Model_113Gb, Model_317Gb, Model_5Tb
+class Model(pt.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv1 = pt.nn.Conv2d(1, 10, kernel_size=5)
+        self.conv2 = pt.nn.Conv2d(10, 20, kernel_size=5)
+        self.conv2_drop = pt.nn.Dropout2d()
+        self.fc1 = pt.nn.Linear(320, 50)
+        self.fc2 = pt.nn.Linear(50, 10)
 
+    def forward(self,
+                x: pt.Tensor):
+        x = F.relu(F.max_pool2d(self.conv1(x), 2))
+        x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
+        x = x.view(-1, 320)
+        x = F.relu(self.fc1(x))
+        x = F.dropout(x, training=self.training)
+        x = self.fc2(x)
+        return F.log_softmax(x, -1)
 
-num_times_params_sent: int = 0
-model_map = {m.__name__.lower(): m for m in [Model_1_5Gb, Model_50Gb,
-                                             Model_113Gb, Model_317Gb,
-                                             Model_5Tb]}
+    def get_params(self) -> np.ndarray:
+        params_list: List[np.ndarray] = list()
+        for P in self.parameters():
+            params_list.append(P.cpu().detach().numpy().reshape(-1))
+        return np.hstack(params_list).reshape(-1,1)
 
+    def set_params(self,
+                   theta: np.ndarray) -> None:
+        param_idx: int = 0
+        for P in self.parameters():
+            if len(P.size() > 0):
+                num_params: int = np.prod(P.size())
+                P.copy_(theta[param_idx:param_idx+num_params]
+                    .reshape(P.size()))
+                param_idx += num_params
 
-def posterior_func(child_pipe: mp.Pipe, child_progress: mp.Queue,
-                   args, num_params: int) -> None:
-    shelf = pymm.shelf("mnist_pymm_posterior",
-                       size_mb=args.size_mb,
-                       pmem_path=args.shelf_file,
-                       force_new=True)
-
-    posterior = PymmPosterior(num_params, shelf)
-
-    stop: bool = False
-    count: int = 0
-    while not stop:
-        params_maybe = child_pipe.recv()
-        stop = params_maybe is None
-
-        if not stop:
-            count += 1
-            posterior.update(params_maybe)
-            child_progress.put(count)
-
-    child_progress.put(None)
-    child_pipe.close()
 
 def train_one_epoch(m: pt.nn.Module,
                     optim: pt.optim.Optimizer,
                     loader: pt.utils.data.DataLoader,
                     epoch: int,
-                    parent_pipe: mp.Pipe,
+                    posterior: Posterior,
                     cuda: int) -> None:
-
-    global num_times_params_sent
     for batch_idx, (X, Y_gt) in tqdm(enumerate(loader),
                                      desc="training epoch %s" % epoch,
                                      total=len(loader)):
@@ -73,17 +74,11 @@ def train_one_epoch(m: pt.nn.Module,
         loss.backward()
         optim.step()
 
-        # m.get_params()
-        parent_pipe.send(m.get_params())
-        num_times_params_sent += 1
+        posterior.update(m.get_params())
 
 
 def main() -> None:
-    global model_map, num_times_params_sent
-
     parser = argparse.ArgumentParser()
-    parser.add_argument("model", type=str, choices=sorted(model_map.keys()),
-                        help="the model type")
     parser.add_argument("-b", "--batch_size", type=int, default=100,
                         help="batch size")
     parser.add_argument("-n", "--learning_rate", type=float,
@@ -97,11 +92,6 @@ def main() -> None:
                         default="/scratch/aewood/data/mnist")
     parser.add_argument("-c", "--cuda", type=int,
                         default=0)
-    parser.add_argument("-s", "--size_mb", type=int, default=40000,
-                        help="size of shelf in mb")
-    parser.add_argument("-f", "--shelf_file", type=str,
-                        default="/mnt/pmem0",
-                        help="pymm shelf directory")
     args = parser.parse_args()
 
     if not os.path.exists(args.path):
@@ -110,12 +100,12 @@ def main() -> None:
     train_loader = pt.utils.data.DataLoader(
         ptv.datasets.MNIST(args.path, train=True, download=True,
                            transform=ptv.transforms.ToTensor()
-                           # transform=ptv.transforms.Compose([
-                           #      ptv.transforms.ToTensor(),
-                           #      ptv.transforms.Normalize((0.1307,),
-                           #                               (0.3081,))
-                           #  ])
-                          ),
+                            # transform=ptv.transforms.Compose([
+                            #     ptv.transforms.ToTensor(),
+                            #     ptv.transforms.Normalize((0.1307,),
+                            #                              (0.3081,))
+                            # ])
+                           ),
         batch_size=args.batch_size,
         shuffle=True)
 
@@ -127,51 +117,29 @@ def main() -> None:
                             #     ptv.transforms.Normalize((0.1307,),
                             #                              (0.3081,))
                             # ])
-                          ),
+                           ),
         batch_size=args.batch_size,
         shuffle=True)
 
     print("loading model")
 
-    m = model_map[args.model]().to(args.cuda)
+    m = Model().to(args.cuda)
     optimizer = pt.optim.SGD(m.parameters(), lr=args.learning_rate,
                              momentum=args.momentum)
 
     num_params: int = m.get_params().shape[0]
     print("num params: %s" % num_params)
-
-    parent_pipe, child_pipe = mp.Pipe(duplex=True)
-    child_progress: mp.Queue = mp.Queue()
-    posterior_process: mp.Process = mp.Process(target=posterior_func,
-                                               args=(child_pipe, child_progress,
-                                                     args, num_params))
-    posterior_process.start()
+    posterior = DramPosterior(num_params)
 
     # update posterior with first parameter sample
-    parent_pipe.send(m.get_params())
-    num_times_params_sent += 1
-
+    posterior.update(m.get_params())
     for e in range(args.epochs):
         train_one_epoch(m,
                         optimizer,
                         train_loader,
                         e+1,
-                        parent_pipe,
+                        posterior,
                         args.cuda)
-
-    """"""
-    parent_pipe.send(None)
-    print("waiting for posterior to finish...")
-    with tqdm(total=num_times_params_sent, desc="posterior progress") as pbar:
-        stop: bool = False
-        while not stop:
-            count_maybe = child_progress.get()
-            stop = count_maybe is None
-            if not stop:
-                pbar.update(1)
-
-    posterior_process.join()
-    """"""
 
 
 if __name__ == "__main__":

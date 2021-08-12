@@ -2,8 +2,8 @@
 from typing import List
 from tqdm import tqdm
 import argparse
+import multiprocessing as mp
 import numpy as np
-import pymm
 import os
 import sys
 import torch as pt
@@ -20,9 +20,7 @@ del _cd_
 
 # PYTHON PROJECT IMPORTS
 from src.posterior import Posterior
-from src.pymmposterior import PymmPosterior
-
-
+from src.dramposterior import DramPosterior
 from mnist_models import Model_1_5Gb, Model_50Gb, Model_113Gb, Model_317Gb, Model_5Tb
 
 
@@ -34,12 +32,7 @@ model_map = {m.__name__.lower(): m for m in [Model_1_5Gb, Model_50Gb,
 
 def posterior_func(child_pipe: mp.Pipe, child_progress: mp.Queue,
                    args, num_params: int) -> None:
-    shelf = pymm.shelf("mnist_pymm_posterior",
-                       size_mb=args.size_mb,
-                       pmem_path=args.shelf_file,
-                       force_new=True)
-
-    posterior = PymmPosterior(num_params, shelf)
+    posterior = DramPosterior(num_params)
 
     stop: bool = False
     count: int = 0
@@ -54,6 +47,7 @@ def posterior_func(child_pipe: mp.Pipe, child_progress: mp.Queue,
 
     child_progress.put(None)
     child_pipe.close()
+
 
 def train_one_epoch(m: pt.nn.Module,
                     optim: pt.optim.Optimizer,
@@ -97,11 +91,6 @@ def main() -> None:
                         default="/scratch/aewood/data/mnist")
     parser.add_argument("-c", "--cuda", type=int,
                         default=0)
-    parser.add_argument("-s", "--size_mb", type=int, default=40000,
-                        help="size of shelf in mb")
-    parser.add_argument("-f", "--shelf_file", type=str,
-                        default="/mnt/pmem0",
-                        help="pymm shelf directory")
     args = parser.parse_args()
 
     if not os.path.exists(args.path):
@@ -110,12 +99,12 @@ def main() -> None:
     train_loader = pt.utils.data.DataLoader(
         ptv.datasets.MNIST(args.path, train=True, download=True,
                            transform=ptv.transforms.ToTensor()
-                           # transform=ptv.transforms.Compose([
-                           #      ptv.transforms.ToTensor(),
-                           #      ptv.transforms.Normalize((0.1307,),
-                           #                               (0.3081,))
-                           #  ])
-                          ),
+                            # transform=ptv.transforms.Compose([
+                            #     ptv.transforms.ToTensor(),
+                            #     ptv.transforms.Normalize((0.1307,),
+                            #                              (0.3081,))
+                            # ])
+                           ),
         batch_size=args.batch_size,
         shuffle=True)
 
@@ -127,7 +116,7 @@ def main() -> None:
                             #     ptv.transforms.Normalize((0.1307,),
                             #                              (0.3081,))
                             # ])
-                          ),
+                           ),
         batch_size=args.batch_size,
         shuffle=True)
 
