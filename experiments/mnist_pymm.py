@@ -60,9 +60,11 @@ def train_one_epoch(m: pt.nn.Module,
                     loader: pt.utils.data.DataLoader,
                     epoch: int,
                     parent_pipe: mp.Pipe,
+                    batch_posterior: int,
                     cuda: int) -> None:
 
     global num_times_params_sent
+    i = 1
     for batch_idx, (X, Y_gt) in tqdm(enumerate(loader),
                                      desc="training epoch %s" % epoch,
                                      total=len(loader)):
@@ -72,10 +74,10 @@ def train_one_epoch(m: pt.nn.Module,
         loss: pt.Tensor = F.nll_loss(Y_hat.cpu(), Y_gt.cpu())
         loss.backward()
         optim.step()
-
-        # m.get_params()
-        parent_pipe.send(m.get_params())
-        num_times_params_sent += 1
+        if ( i%batch_posterior == 0):
+            parent_pipe.send(m.get_params())
+            num_times_params_sent += 1
+        i = i + 1
 
 
 def main() -> None:
@@ -102,6 +104,8 @@ def main() -> None:
     parser.add_argument("-f", "--shelf_file", type=str,
                         default="/mnt/pmem0",
                         help="pymm shelf directory")
+    parser.add_argument("-r", "--bpost", type=int,
+                        default=1)
     args = parser.parse_args()
 
     if not os.path.exists(args.path):
@@ -157,6 +161,7 @@ def main() -> None:
                         train_loader,
                         e+1,
                         parent_pipe,
+                        args.bpost
                         args.cuda)
 
     """"""
