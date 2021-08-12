@@ -103,7 +103,7 @@ class Model_3FC(pt.nn.Module):
                     .reshape(P.size()))
                 param_idx += num_params
 
-class Model_3FC(pt.nn.Module):
+class Model_4FC(pt.nn.Module):
     def __init__(self):
         super().__init__()
         self.fc1 = pt.nn.Linear(28*28, 1000)

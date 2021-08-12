@@ -21,12 +21,11 @@ del _cd_
 # PYTHON PROJECT IMPORTS
 from src.posterior import Posterior
 from src.lazypymmposterior import LazyPymmPosterior
-from mnist_models import Model_1_5Gb, Model_50Gb, Model_113Gb, Model_317Gb, Model_5Tb
+from mnist_models import Model_2Conv2FC, Model_2FC, Model_3FC, Model_4FC
 
 
-model_map = {m.__name__.lower(): m for m in [Model_1_5Gb, Model_50Gb,
-                                             Model_113Gb, Model_317Gb,
-                                             Model_5Tb]}
+model_map = {m.__name__.lower(): m for m in [Model_2Conv2FC, Model_2FC,
+                                             Model_3FC, Model_4FC]}
 
 
 def train_one_epoch(m: pt.nn.Module,
@@ -164,6 +163,7 @@ def main() -> None:
 
     with open(args.results_filepath, "w") as f:
         writer = csv.writer(f, delimiter=",")
+        writer.writerow(["posterior size (byte)", posterior.nbytes])
         writer.writerow(["train data loading time (s)", end_train_loader_time])
         writer.writerow(["test data loading time (s)", end_test_loader_time])
         writer.writerow(["open shelf time (s)", end_shelf_time])
