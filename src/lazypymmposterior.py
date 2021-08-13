@@ -17,14 +17,14 @@ class LazyPymmPosterior(Posterior):
         self.shelf = shelf
         self.shelf.K = K
 
-        self.shelf.mu = self.shelf.ndarray((self.num_params,1), dtype=self.dtype)
-        self.shelf.sec_moment_uncentered = self.shelf.ndarray((self.num_params, 1),
+        self.shelf.mu = pymm.ndarray((self.num_params,1), dtype=self.dtype)
+        self.shelf.sec_moment_uncentered = pymm.ndarray((self.num_params, 1),
                                                               dtype=self.dtype)
 
-        self.shelf.diag = self.shelf.ndarray((self.num_params, 1), dtype=self.dtype)
+        self.shelf.diag = pymm.ndarray((self.num_params, 1), dtype=self.dtype)
         # self.shelf.cov = self.shelf.ndarray((self.num_params, self.num_params),
         #                                     dtype=self.dtype)
-        self.shelf.D_hat = self.shelf.ndarray((self.num_params, K), dtype=self.dtype)
+        self.shelf.D_hat = pymm.ndarray((self.num_params, K), dtype=self.dtype)
         self.shelf.D_hat_start = 0
 
         self.shelf.num_samples = 0
