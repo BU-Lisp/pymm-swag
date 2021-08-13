@@ -38,11 +38,11 @@ class LazyPymmPosterior(Posterior):
 
         self.shelf.sec_moment_uncentered += theta**2
 
-        self.shelf.D_hat[:,self.D_hat_start] = (theta-(self.shelf.sec_moment_uncentered/self.num_samples)).reshape(-1)
+        self.shelf.D_hat[:,self.D_hat_start] = (theta-(self.shelf.sec_moment_uncentered/self.shelf.num_samples)).reshape(-1)
         self.shelf.D_hat_start = (self.shelf.D_hat_start + 1) % self.K
 
     def finalize(self) -> None:
-        self.shelf.mu /= self.num_samples
+        self.shelf.mu /= self.shelf.num_samples
         self.shelf.diag = self.shelf.sec_moment_uncentered - (self.shelf.mu**2)
         # self.cov = (self.D_hat @ self.D_hat.T) / (self.K - 1)
 
