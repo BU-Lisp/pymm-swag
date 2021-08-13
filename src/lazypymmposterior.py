@@ -32,13 +32,13 @@ class LazyPymmPosterior(Posterior):
 
     def update(self,
                theta: np.ndarray) -> None:
-        theta = theta.reshape(-1,1)
+        self.shelf.theta = theta.reshape(-1,1)
         self.shelf.num_samples += 1
-        self.shelf.mu += theta
+        self.shelf.mu += self.shelf.theta
 
         self.shelf.sec_moment_uncentered += theta**2
 
-        self.shelf.D_hat[:,self.shelf.D_hat_start] = (theta-(self.shelf.sec_moment_uncentered/self.shelf.num_samples)).reshape(-1)
+        self.shelf.D_hat[:,self.shelf.D_hat_start] = (self.shelf.theta-(self.shelf.sec_moment_uncentered/self.shelf.num_samples)).reshape(-1)
         self.shelf.D_hat_start = (self.shelf.D_hat_start + 1) % self.K
 
     def finalize(self) -> None:
