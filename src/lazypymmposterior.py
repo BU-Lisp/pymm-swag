@@ -16,19 +16,20 @@ class LazyPymmPosterior(Posterior):
                  dtype: np.dtype = np.float32) -> None:
         super().__init__(num_params, dtype=dtype)
         self.shelf = shelf
-        self.shelf.K = K
+        self.shelf.K: int = K
 
-        self.shelf.mu = pymm.ndarray((self.num_params,1), dtype=self.dtype)
-        self.shelf.sec_moment_uncentered = pymm.ndarray((self.num_params, 1),
-                                                         dtype=self.dtype)
+        self.shelf.mu: pymm.ndarray = pymm.ndarray((self.num_params,1), dtype=self.dtype)
+        self.shelf.sec_moment_uncentered: pymm.ndarray = pymm.ndarray((self.num_params, 1),
+                                                                      dtype=self.dtype)
 
-        self.shelf.diag = pymm.ndarray((self.num_params, 1), dtype=self.dtype)
+        self.shelf.diag: pymm.ndarray = pymm.ndarray((self.num_params, 1), dtype=self.dtype)
         # self.shelf.cov = self.shelf.ndarray((self.num_params, self.num_params),
         #                                     dtype=self.dtype)
-        self.shelf.D_hat = pymm.ndarray((self.num_params, K), dtype=self.dtype)
-        self.shelf.D_hat_start = 0
+        self.shelf.D_hat: pymm.ndarray = pymm.ndarray((self.num_params, K),
+                                                      dtype=self.dtype)
+        self.shelf.D_hat_start: int = 0
 
-        self.num_samples = 0
+        self.shelf.num_samples: int = 0
 
         self.shelf.mu.fill(0)
         self.shelf.sec_moment_uncentered.fill(0)
@@ -38,17 +39,17 @@ class LazyPymmPosterior(Posterior):
     def update(self,
                theta: np.ndarray) -> None:
         self.shelf.theta = theta.reshape(-1,1)
-        self.num_samples += 1
+        self.shelf.num_samples += 1
         self.shelf.mu += self.shelf.theta
 
         self.shelf.sec_moment_uncentered += self.shelf.theta**2
 
-        self.shelf.sec_moment_avg = self.shelf.sec_moment_uncentered/self.num_samples
+        self.shelf.sec_moment_avg = self.shelf.sec_moment_uncentered/self.shelf.num_samples
         self.shelf.D_hat[:,self.shelf.D_hat_start] = (self.shelf.theta-self.shelf.sec_moment_avg).reshape(-1)
         self.shelf.D_hat_start = (self.shelf.D_hat_start + 1) % self.shelf.K
 
     def finalize(self) -> None:
-        self.shelf.mu /= self.num_samples
+        self.shelf.mu /= self.shelf.num_samples
         self.shelf.diag = self.shelf.sec_moment_uncentered - (self.shelf.mu**2)
         # self.cov = (self.D_hat @ self.D_hat.T) / (self.K - 1)
 
