@@ -23,7 +23,7 @@ class LazyDramPosterior(Posterior):
         # self.cov: np.ndarray = np.zeros((self.num_params, self.num_params),
         #                                 dtype=self.dtype)
         self.D_hat: np.ndarray = np.zeros((self.num_params, K), dtype=self.dtype)
-        self.D_hat_start: int = 0
+        self.D_hat_idx: int = 0
 
         self.num_samples: int = 0
 
@@ -35,8 +35,8 @@ class LazyDramPosterior(Posterior):
 
         self.sec_moment_uncentered += theta**2
 
-        self.D_hat[:,self.D_hat_start] = (theta-(self.sec_moment_uncentered/self.num_samples)).reshape(-1)
-        self.D_hat_start = (self.D_hat_start + 1) % self.K
+        self.D_hat[:,self.D_hat_idx] = (theta-(self.sec_moment_uncentered/self.num_samples)).reshape(-1)
+        self.D_hat_idx = (self.D_hat_idx + 1) % self.K
 
     def finalize(self) -> None:
         self.mu /= self.num_samples

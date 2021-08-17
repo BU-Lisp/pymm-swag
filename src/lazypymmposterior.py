@@ -16,7 +16,6 @@ class LazyPymmPosterior(Posterior):
                  dtype: np.dtype = np.float32) -> None:
         super().__init__(num_params, dtype=dtype)
         self.shelf = shelf
-        self.shelf.K: pymm.integer_number = K
 
         self.shelf.mu: pymm.ndarray = pymm.ndarray((self.num_params,1), dtype=self.dtype)
         self.shelf.sec_moment_uncentered: pymm.ndarray = pymm.ndarray((self.num_params, 1),
@@ -27,14 +26,19 @@ class LazyPymmPosterior(Posterior):
         #                                     dtype=self.dtype)
         self.shelf.D_hat: pymm.ndarray = pymm.ndarray((self.num_params, K),
                                                       dtype=self.dtype)
-        self.shelf.D_hat_start: pymm.integer_number = 0
-        self.shelf.num_samples: pymm.integer_number = 0
+
+        # IMPORTANT TO STORE INT CONSTS IN DRAM
+        # AT LEAST UNTIL PYMM INTS CAN BE USED AS INDICES INTO PYMM ARRAYS
+        self.shelf.K: pymm.integer_value = K
+        self.shelf.num_samples: pymm.integer_value = 0
+        self.D_hat_idx: int = 0
 
         self.shelf.mu.fill(0)
         self.shelf.sec_moment_uncentered.fill(0)
         self.shelf.diag.fill(0)
         self.shelf.D_hat.fill(0)
 
+    """
     def update(self,
                theta: np.ndarray) -> None:
         self.shelf.theta = theta.reshape(-1,1)
@@ -42,11 +46,32 @@ class LazyPymmPosterior(Posterior):
         self.shelf.mu += self.shelf.theta
         self.shelf.sec_moment_uncentered += self.shelf.theta**2
 
+        print(self.D_hat_idx, self.shelf.num_samples)
+
         self.shelf.sec_moment_avg = self.shelf.sec_moment_uncentered/self.shelf.num_samples
         self.shelf.theta_deviation = (self.shelf.theta - self.shelf.sec_moment_avg)\
             .reshape(-1)
-        self.shelf.D_hat[:,self.shelf.D_hat_start] = self.shelf.theta_deviation
-        self.shelf.D_hat_start = (self.shelf.D_hat_start + 1) % self.shelf.K
+
+        print("D_hat", type(self.shelf.D_hat), self.shelf.D_hat.shape)
+        print("theta_deviation", type(self.shelf.theta_deviation),
+                                 self.shelf.theta_deviation.shape)
+        print("sliced D_hat", type(self.shelf.D_hat[:,self.D_hat_idx]),
+              self.shelf.D_hat[:,self.D_hat_idx].shape)
+
+        self.shelf.D_hat[:,self.D_hat_idx] = self.shelf.theta_deviation
+        self.D_hat_idx = (self.D_hat_idx + 1) % int(self.shelf.K)
+    """
+
+    def update(self,
+               theta: np.ndarray) -> None:
+        theta = theta.reshape(-1,1)
+        self.shelf.num_samples += 1
+        self.shelf.mu += theta
+
+        self.shelf.sec_moment_uncentered += theta**2
+
+        self.shelf.D_hat[:,self.D_hat_idx] = (theta-(self.shelf.sec_moment_uncentered/self.shelf.num_samples)).reshape(-1)
+        self.D_hat_idx = (self.D_hat_idx + 1) % int(self.shelf.K)
 
     def finalize(self) -> None:
         self.shelf.mu /= self.shelf.num_samples

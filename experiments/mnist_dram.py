@@ -29,6 +29,14 @@ model_map = {m.__name__.lower(): m for m in [Model_2Conv2FC, Model_2FC,
                                              Model_3FC, Model_4FC]}
 
 
+def requires_flat_examples(m: pt.nn.Module) -> bool:
+    result = False
+    for model_type in [Model_2FC, Model_3FC, Model_4FC]:
+        if isinstance(m, model_type):
+            result = True
+    return result
+
+
 def train_one_epoch(m: pt.nn.Module,
                     optim: pt.optim.Optimizer,
                     loader: pt.utils.data.DataLoader,
@@ -41,6 +49,9 @@ def train_one_epoch(m: pt.nn.Module,
                                      desc="training epoch %s" % epoch,
                                      total=len(loader)):
         optim.zero_grad()
+
+        if requires_flat_examples(m):
+            X = X.view(X.size(0), -1)
 
         Y_hat: pt.Tensor = m.forward(X.to(cuda))
         loss: pt.Tensor = F.nll_loss(Y_hat.cpu(), Y_gt.cpu())

@@ -30,26 +30,42 @@ model_map = {m.__name__.lower(): m for m in [Model_2Conv2FC, Model_2FC,
                                              Model_3FC, Model_4FC]}
 
 
+def requires_flat_examples(m: pt.nn.Module) -> bool:
+    result = False
+    for model_type in [Model_2FC, Model_3FC, Model_4FC]:
+        if isinstance(m, model_type):
+            result = True
+    return result
+
+
 def train_one_epoch(m: pt.nn.Module,
                     optim: pt.optim.Optimizer,
                     loader: pt.utils.data.DataLoader,
                     epoch: int,
                     posterior: Posterior,
+                    batch_posterior: int,
                     cuda: int) -> None:
+    i = 1
     for batch_idx, (X, Y_gt) in tqdm(enumerate(loader),
                                      desc="training epoch %s" % epoch,
                                      total=len(loader)):
         optim.zero_grad()
+
+        if requires_flat_examples(m):
+            X = X.view(X.size(0), -1)
 
         Y_hat: pt.Tensor = m.forward(X.to(cuda))
         loss: pt.Tensor = F.nll_loss(Y_hat.cpu(), Y_gt.cpu())
         loss.backward()
         optim.step()
 
-        posterior.update(m.get_params())
+        if ( i%batch_posterior == 0):
+            posterior.update(m.get_params())
+        i += 1
 
 
 def main() -> None:
+    script_start_time = time.time()
     parser = argparse.ArgumentParser()
     parser.add_argument("model", type=str, choices=sorted(model_map.keys()),
                         help="the model type")
@@ -73,6 +89,8 @@ def main() -> None:
     parser.add_argument("-f", "--shelf_file", type=str,
                         default="/mnt/pmem0",
                         help="pymm shelf directory")
+    parser.add_argument("-r", "--bpost", type=int,
+                        default=1)
     parser.add_argument("-csv", "--results_filepath", type=str,
                         default="./results/mnist/pymm_timings.csv")
     args = parser.parse_args()
