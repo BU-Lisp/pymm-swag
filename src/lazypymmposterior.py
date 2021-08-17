@@ -16,7 +16,7 @@ class LazyPymmPosterior(Posterior):
                  dtype: np.dtype = np.float32) -> None:
         super().__init__(num_params, dtype=dtype)
         self.shelf = shelf
-        self.shelf.K: int = K
+        self.shelf.K: pymm.integer_number = K
 
         self.shelf.mu: pymm.ndarray = pymm.ndarray((self.num_params,1), dtype=self.dtype)
         self.shelf.sec_moment_uncentered: pymm.ndarray = pymm.ndarray((self.num_params, 1),
