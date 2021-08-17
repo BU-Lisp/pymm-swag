@@ -27,9 +27,8 @@ class LazyPymmPosterior(Posterior):
         #                                     dtype=self.dtype)
         self.shelf.D_hat: pymm.ndarray = pymm.ndarray((self.num_params, K),
                                                       dtype=self.dtype)
-        self.shelf.D_hat_start: int = 0
-
-        self.shelf.num_samples: int = 0
+        self.shelf.D_hat_start: pymm.integer_number = 0
+        self.shelf.num_samples: pymm.integer_number = 0
 
         self.shelf.mu.fill(0)
         self.shelf.sec_moment_uncentered.fill(0)
@@ -41,11 +40,12 @@ class LazyPymmPosterior(Posterior):
         self.shelf.theta = theta.reshape(-1,1)
         self.shelf.num_samples += 1
         self.shelf.mu += self.shelf.theta
-
         self.shelf.sec_moment_uncentered += self.shelf.theta**2
 
         self.shelf.sec_moment_avg = self.shelf.sec_moment_uncentered/self.shelf.num_samples
-        self.shelf.D_hat[:,self.shelf.D_hat_start] = (self.shelf.theta-self.shelf.sec_moment_avg).reshape(-1)
+        self.shelf.theta_deviation = (self.shelf.theta - self.shelf.sec_moment_avg)
+            .reshape(-1)
+        self.shelf.D_hat[:,self.shelf.D_hat_start] = self.shelf.theta_deviation
         self.shelf.D_hat_start = (self.shelf.D_hat_start + 1) % self.shelf.K
 
     def finalize(self) -> None:
