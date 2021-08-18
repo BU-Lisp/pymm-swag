@@ -20,18 +20,22 @@ class MMapNpyHandle(object):
         if not self.path.endswith(".npy"):
             self.path += ".npy"
 
-    def __enter__(self) -> "MMapNpyHandle":
-        # open memmaped .npy file with offset of 128 so that we can write the .npy header later
-        # based on: https://stackoverflow.com/questions/36769378/flushing-numpy-memmap-to-npy-file
         self.data: np.ndarray = np.memmap(self.path, mode="w+", dtype=self.dtype,
                                           shape=self.shape, offset=128)
         self.header: str = np.lib.format.header_data_from_array_1_0(self.data)
-        return self
 
-    def __exit__(self, type, value, traceback) -> None:
+    def __del__(self) -> None:
         del self.data
         with open(self.path, "r+b") as f:
             np.lib.format.write_array_header_1_0(f, self.header)
+
+    def __enter__(self) -> "MMapNpyHandle":
+        # open memmaped .npy file with offset of 128 so that we can write the .npy header later
+        # based on: https://stackoverflow.com/questions/36769378/flushing-numpy-memmap-to-npy-file
+        return self
+
+    def __exit__(self, type, value, traceback) -> None:
+        ...
 
     def write(self,
               idx: Union[int, List[int], np.ndarray],

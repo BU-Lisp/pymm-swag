@@ -2,9 +2,11 @@
 from typing import List
 from tqdm import tqdm
 import argparse
+import csv
 import numpy as np
 import os
 import sys
+import time
 import torch as pt
 import torch.nn.functional as F
 import torchvision as ptv
@@ -19,43 +21,20 @@ del _cd_
 
 # PYTHON PROJECT IMPORTS
 from src.posterior import Posterior
-from src.dramposterior import MemmapPosterior
+from src.lazymmapposterior import LazyMMapPosterior
+from mnist_models import Model_2Conv2FC, Model_2FC, Model_3FC, Model_4FC
 
 
-class Model(pt.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.conv1 = pt.nn.Conv2d(1, 10, kernel_size=5)
-        self.conv2 = pt.nn.Conv2d(10, 20, kernel_size=5)
-        self.conv2_drop = pt.nn.Dropout2d()
-        self.fc1 = pt.nn.Linear(320, 50)
-        self.fc2 = pt.nn.Linear(50, 10)
+model_map = {m.__name__.lower(): m for m in [Model_2Conv2FC, Model_2FC,
+                                             Model_3FC, Model_4FC]}
 
-    def forward(self,
-                x: pt.Tensor):
-        x = F.relu(F.max_pool2d(self.conv1(x), 2))
-        x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
-        x = x.view(-1, 320)
-        x = F.relu(self.fc1(x))
-        x = F.dropout(x, training=self.training)
-        x = self.fc2(x)
-        return F.log_softmax(x, -1)
 
-    def get_params(self) -> np.ndarray:
-        params_list: List[np.ndarray] = list()
-        for P in self.parameters():
-            params_list.append(P.cpu().detach().numpy().reshape(-1))
-        return np.hstack(params_list).reshape(-1,1)
-
-    def set_params(self,
-                   theta: np.ndarray) -> None:
-        param_idx: int = 0
-        for P in self.parameters():
-            if len(P.size() > 0):
-                num_params: int = np.prod(P.size())
-                P.copy_(theta[param_idx:param_idx+num_params]
-                    .reshape(P.size()))
-                param_idx += num_params
+def requires_flat_examples(m: pt.nn.Module) -> bool:
+    result = False
+    for model_type in [Model_2FC, Model_3FC, Model_4FC]:
+        if isinstance(m, model_type):
+            result = True
+    return result
 
 
 def train_one_epoch(m: pt.nn.Module,
@@ -63,22 +42,33 @@ def train_one_epoch(m: pt.nn.Module,
                     loader: pt.utils.data.DataLoader,
                     epoch: int,
                     posterior: Posterior,
+                    batch_posterior: int,
                     cuda: int) -> None:
+    i = 1
     for batch_idx, (X, Y_gt) in tqdm(enumerate(loader),
                                      desc="training epoch %s" % epoch,
                                      total=len(loader)):
         optim.zero_grad()
 
+        if requires_flat_examples(m):
+            X = X.view(X.size(0), -1)
+
         Y_hat: pt.Tensor = m.forward(X.to(cuda))
         loss: pt.Tensor = F.nll_loss(Y_hat.cpu(), Y_gt.cpu())
         loss.backward()
         optim.step()
-
-        posterior.update(m.get_params())
+        if ( i%batch_posterior == 0):
+            posterior.update(m.get_params())
+        i = i + 1    
 
 
 def main() -> None:
+    script_start_time = time.time()
     parser = argparse.ArgumentParser()
+    parser.add_argument("model", type=str, choices=sorted(model_map.keys()),
+                        help="the model type")
+    parser.add_argument("-K", "--posterior_sample_size", type=int,
+                        default=np.inf, help="the number of samples posterior expects")
     parser.add_argument("-b", "--batch_size", type=int, default=100,
                         help="batch size")
     parser.add_argument("-n", "--learning_rate", type=float,
@@ -89,16 +79,28 @@ def main() -> None:
     parser.add_argument("-e", "--epochs", type=int, default=int(1e6),
                         help="num epochs")
     parser.add_argument("-p", "--path", type=str,
-                        default="/scratch/aewood/data/mnist")
+                        default="/scratch/aewood/data/mnist",
+                        help="path to MNIST data files")
     parser.add_argument("-c", "--cuda", type=int,
                         default=0)
-    parser.add_argument("-s", "--memmap_path", type=str, default="./posterior",
-                        help="directory of where to store memory mapped files")
+    parser.add_argument("-r", "--bpost", type=int,
+                        default=1, help="period for recording params in posterior")
+    parser.add_argument("-s", "--posterior_path", type=str,
+                        default="/scratch/aewood/posterior/mnist/mmap",
+                        help="path to directory where mmap posterior will write to")
+    parser.add_argument("-csv", "--results_filepath", type=str,
+                        default="./results/mnist/dram_timings.csv",
+                        help="path to file to record timing results")
     args = parser.parse_args()
 
     if not os.path.exists(args.path):
         os.makedirs(args.path)
 
+    results_dir: str = os.path.abspath(os.path.dirname(args.results_filepath))
+    if not os.path.exists(results_dir):
+        os.makedirs(results_dir)
+
+    start_time: float = time.time()
     train_loader = pt.utils.data.DataLoader(
         ptv.datasets.MNIST(args.path, train=True, download=True,
                            transform=ptv.transforms.ToTensor()
@@ -110,7 +112,9 @@ def main() -> None:
                            ),
         batch_size=args.batch_size,
         shuffle=True)
+    end_train_loader_time = time.time() - start_time
 
+    start_time = time.time()
     test_loader = pt.utils.data.DataLoader(
         ptv.datasets.MNIST(args.path, train=False, download=True,
                            transform=ptv.transforms.ToTensor()
@@ -122,27 +126,67 @@ def main() -> None:
                            ),
         batch_size=args.batch_size,
         shuffle=True)
+    end_test_loader_time = time.time() - start_time
+
+    if np.isinf(args.posterior_sample_size):
+        args.posterior_sample_size = len(train_loader) * args.epochs
 
     print("loading model")
 
-    m = Model().to(args.cuda)
+    start_time = time.time()
+    m = model_map[args.model]().to(args.cuda)
     optimizer = pt.optim.SGD(m.parameters(), lr=args.learning_rate,
                              momentum=args.momentum)
+    end_make_model_time = time.time() - start_time
 
     num_params: int = m.get_params().shape[0]
-    print("num params: %s" % num_params)
-    posterior = MemmapPosterior(num_params)
 
+    if not os.path.exists(args.posterior_path):
+        os.makedirs(args.posterior_path)
+    start_time = time.time()
+    posterior = LazyMMapPosterior(num_params, args.posterior_path,
+                                  K=args.posterior_sample_size)
+    end_make_posterior_time = time.time() - start_time
+    print("num params: %s" % num_params,
+          "posterior will take %s bytes" % posterior.nbytes)
+
+    epoch_times: List[float] = list()
+    start_experiment_time = time.time()
     # update posterior with first parameter sample
     posterior.update(m.get_params())
     for e in range(args.epochs):
+        start_epoch_time = time.time()
         train_one_epoch(m,
                         optimizer,
                         train_loader,
                         e+1,
                         posterior,
+                        args.bpost,
                         args.cuda)
+        epoch_times.append(time.time() - start_epoch_time)
 
+    print("finalizing posterior")
+    start_finalize_time = time.time()
+    posterior.finalize()
+    end_finalize_time = time.time() - start_finalize_time
+    print("done")
+
+    end_experiment_time = time.time() - start_experiment_time
+    end_script_time = time.time() - script_start_time
+    # posterior.sample()
+
+    with open(args.results_filepath, "w") as f:
+        writer = csv.writer(f, delimiter=",")
+        writer.writerow(["posterior size (byte)", posterior.nbytes])
+        writer.writerow(["train data loading time (s)", end_train_loader_time])
+        writer.writerow(["test data loading time (s)", end_test_loader_time])
+        writer.writerow(["make model time (s)", end_make_model_time])
+        writer.writerow(["make posterior time (s)", end_make_posterior_time])
+        for e,t in enumerate(epoch_times):
+            writer.writerow(["epoch %s time (s)" % e, t])
+        writer.writerow(["posterior finalize time (s)", end_finalize_time])
+        writer.writerow(["total experiment time (s)", end_experiment_time])
+        writer.writerow(["total script time (s)", end_script_time])
 
 if __name__ == "__main__":
     main()
