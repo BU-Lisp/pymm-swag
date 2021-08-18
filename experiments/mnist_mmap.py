@@ -89,7 +89,7 @@ def main() -> None:
                         default="/scratch/aewood/posterior/mnist/mmap",
                         help="path to directory where mmap posterior will write to")
     parser.add_argument("-csv", "--results_filepath", type=str,
-                        default="./results/mnist/dram_timings.csv",
+                        default="./results/mnist/mmap_timings.csv",
                         help="path to file to record timing results")
     args = parser.parse_args()
 

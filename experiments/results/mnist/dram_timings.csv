@@ -1,9 +1,0 @@
-posterior size (byte),52678092
-train data loading time (s),0.012448310852050781
-test data loading time (s),0.0022416114807128906
-make model time (s),0.8573930263519287
-make posterior time (s),0.004011869430541992
-epoch 0 time (s),5.5427961349487305
-posterior finalize time (s),0.00011873245239257812
-total experiment time (s),5.560081481933594
-total script time (s),6.437205076217651
