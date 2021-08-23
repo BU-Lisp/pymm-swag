@@ -91,6 +91,9 @@ def main() -> None:
                         help="pymm shelf directory")
     parser.add_argument("-r", "--bpost", type=int,
                         default=1)
+    parser.add_argument("-back", "--backend", type=str,
+                        default="hstore-cc",
+                        help="The backend of the shelf - hastore-cc/ mapstore")
     parser.add_argument("-csv", "--results_filepath", type=str,
                         default="./results/mnist/pymm_timings.csv")
     args = parser.parse_args()
@@ -137,6 +140,7 @@ def main() -> None:
     shelf = pymm.shelf("mnist_pymm_posterior",
                        size_mb=args.size_mb,
                        pmem_path=args.shelf_file,
+                       backend=args.backend,
                        force_new=True)
     end_shelf_time = time.time() - start_time
 
