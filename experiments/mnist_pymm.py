@@ -53,8 +53,10 @@ def train_one_epoch(m: pt.nn.Module,
 
         if requires_flat_examples(m):
             X = X.view(X.size(0), -1)
+        if cuda > -1:
+            X = X.to(cuda)
 
-        Y_hat: pt.Tensor = m.forward(X.to(cuda))
+        Y_hat: pt.Tensor = m.forward(X)
         loss: pt.Tensor = F.nll_loss(Y_hat.cpu(), Y_gt.cpu())
         loss.backward()
         optim.step()
@@ -83,7 +85,8 @@ def main() -> None:
     parser.add_argument("-p", "--path", type=str,
                         default="/scratch/aewood/data/mnist")
     parser.add_argument("-c", "--cuda", type=int,
-                        default=0)
+                        default=-1,
+                        help="gpu id (-1 for cpu"))
     parser.add_argument("-s", "--size_mb", type=int, default=40000,
                         help="size of shelf in mb")
     parser.add_argument("-f", "--shelf_file", type=str,
@@ -147,7 +150,9 @@ def main() -> None:
     print("loading model")
 
     start_time = time.time()
-    m = model_map[args.model]().to(args.cuda)
+    m = model_map[args.model]()
+    if args.cuda > -1:
+        m = m.to(args.cuda)
     optimizer = pt.optim.SGD(m.parameters(), lr=args.learning_rate,
                              momentum=args.momentum)
     end_make_model_time = time.time() - start_time
