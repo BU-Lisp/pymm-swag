@@ -95,8 +95,8 @@ def main() -> None:
     parser.add_argument("-r", "--bpost", type=int,
                         default=1)
     parser.add_argument("-back", "--backend", type=str,
-                        default="hstore-cc",
-                        help="The backend of the shelf - hastore-cc/ mapstore")
+                        default="hstore-cc", choices=["hstore-cc", "mapstore"],
+                        help="The backend of the shelf - hstore-cc/ mapstore")
     parser.add_argument("-csv", "--results_filepath", type=str,
                         default="./results/mnist/pymm_timings.csv")
     args = parser.parse_args()
