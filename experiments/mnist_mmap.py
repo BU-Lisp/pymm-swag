@@ -85,7 +85,7 @@ def main() -> None:
                         help="path to MNIST data files")
     parser.add_argument("-c", "--cuda", type=int,
                         default=-1,
-                        help="gpu id (-1 for cpu"))
+                        help="gpu id (-1 for cpu)")
     parser.add_argument("-r", "--bpost", type=int,
                         default=1, help="period for recording params in posterior")
     parser.add_argument("-s", "--posterior_path", type=str,

@@ -84,7 +84,7 @@ def main() -> None:
                         default="/scratch/aewood/data/mnist")
     parser.add_argument("-c", "--cuda", type=int,
                         default=-1,
-                        help="gpu id (-1 for cpu"))
+                        help="gpu id (-1 for cpu)")
     parser.add_argument("-r", "--bpost", type=int,
                         default=1)
     parser.add_argument("-csv", "--results_filepath", type=str,

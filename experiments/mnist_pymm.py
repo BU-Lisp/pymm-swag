@@ -86,7 +86,7 @@ def main() -> None:
                         default="/scratch/aewood/data/mnist")
     parser.add_argument("-c", "--cuda", type=int,
                         default=-1,
-                        help="gpu id (-1 for cpu"))
+                        help="gpu id (-1 for cpu)")
     parser.add_argument("-s", "--size_mb", type=int, default=40000,
                         help="size of shelf in mb")
     parser.add_argument("-f", "--shelf_file", type=str,
